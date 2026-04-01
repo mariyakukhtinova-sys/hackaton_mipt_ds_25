@@ -2,7 +2,7 @@
 
 ## Коротко
 
-Уникальные файлы:
+Текущее состояние папки `src`:
 
 - `award_badges.csv`
 - `lessons.csv`
@@ -10,39 +10,34 @@
 - `user_activity_histories.csv`
 - `user_answers.csv`
 - `user_award_badges.csv`
+- `user_lessons.csv`
 - `user_trainings.csv`
 - `users.csv`
 - `users_courses.csv`
 - `wk_media_view_sessions.csv`
+- `wk_users_courses_actions.csv`
+- `xp_awards.csv`
+- `xp_ratings.csv`
 
-Дубликаты файлов:
+По текущим MD5-хэшам **полных дубликатов больше нет**.
 
-- `lessons.csv` = `user_lessons.csv` = `xp_awards.csv`
-- `user_answers.csv` = `wk_users_courses_actions.csv`
-- `user_access_histories.csv` = `xp_ratings.csv`
+Самые полезные связи сейчас:
 
-Рабочее ядро схемы:
-
-- `users_courses.csv` — основная таблица `user-course`
-- `lessons.csv` — структура курса
-- `user_answers.csv`, `user_trainings.csv`, `user_award_badges.csv` — события и активность пользователя
-
-Слабосвязанные таблицы:
-
-- `users.csv` — в текущей выгрузке нет явного `user_id`
-- `user_access_histories.csv` — `users_course_id` не стыкуется с текущей `users_courses.csv`
-- `user_activity_histories.csv` — нет bridge-таблицы для `user_lesson_id`
-- `wk_media_view_sessions.csv` — нет явной связи с курсом и пользователем
+- `users_courses.course_id` -> `lessons.course_id`
+- `user_award_badges.award_badge_id` -> `award_badges` (по смыслу и диапазону значений)
+- `user_lessons.users_course_id` -> `user_access_histories.users_course_id`
+- `wk_users_courses_actions.users_course_id` -> `user_access_histories.users_course_id`
+- `user_lessons` <-> `wk_users_courses_actions` почти полностью совпадают по парам `user_id + users_course_id`
 
 ## `Unnamed: 0`
 
-Во всех уникальных таблицах `Unnamed: 0`:
+Во всех таблицах `Unnamed: 0`:
 
 - уникален
 - без пропусков
 - идёт подряд от `0` до `n-1`
 
-Это технический индекс строки / локальный surrogate key. Внутри таблицы он может служить ID записи, но как внешний ключ между таблицами не работает.
+Это технический индекс строки. Внутри таблицы он может играть роль локального ID записи, но как внешний ключ между таблицами не используется.
 
 ## Таблицы и колонки
 
@@ -69,7 +64,7 @@
 
 ### `lessons.csv`
 
-Роль: структура курса и свойства уроков.
+Роль: справочник/структура уроков внутри курса.
 
 | Колонка | Тип | Описание |
 |---|---|---|
@@ -81,16 +76,66 @@
 | `wk_max_points` | `float64` | Максимум баллов за урок |
 | `wk_task_count` | `float64` | Число задач в уроке |
 | `wk_survival_training_expected` | `bool` | Есть ли survival training: `True`, `False` |
-| `wk_scratch_playground_enabled` | `bool` | Включена ли практика/песочница: `True`, `False` |
+| `wk_scratch_playground_enabled` | `bool` | Включена ли практика: `True`, `False` |
 | `wk_attendance_tracking_enabled` | `bool` | Включён ли трекинг посещаемости: `True`, `False` |
-| `wk_video_duration` | `float64` | Длительность видео/материала |
-| `wk_attendance_tracking_disabled_at` | `object/datetime` | Когда отключили attendance tracking; встречаются `23 Dec, 2025, 22:25`, `19 Jan, 2026, 11:05` |
+| `wk_video_duration` | `float64` | Длительность видео |
+| `wk_attendance_tracking_disabled_at` | `object/datetime` | Когда отключили attendance tracking |
+
+### `user_lessons.csv`
+
+Роль: связь пользователя с конкретным уроком внутри конкретного `users_course_id`.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический ID строки |
+| `user_id` | `object/int` | Идентификатор пользователя |
+| `lesson_id` | `object/int` | Идентификатор урока |
+| `group_id` | `object/int` | Идентификатор группы |
+| `video_visited` | `bool` | Заходил ли на видео: `True`, `False` |
+| `translation_visited` | `bool` | Заходил ли на перевод/текст: `True`, `False` |
+| `users_course_id` | `object/int` | Идентификатор записи user-course |
+| `solved` | `bool` | Решён ли урок/набор задач: `True`, `False` |
+| `solved_tasks_count` | `int64` | Число решённых задач |
+| `wk_points` | `float64` | Баллы за урок |
+| `video_viewed` | `bool` | Просмотрено ли видео: `True`, `False` |
+| `wk_solved_task_count` | `float64` | Число решённых задач в wk-логике |
+
+Комментарий: это одна из самых полезных новых таблиц, потому что она связывает `user_id`, `lesson_id` и `users_course_id`.
+
+### `user_access_histories.csv`
+
+Роль: периоды доступа к курсу.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический ID строки |
+| `users_course_id` | `int64` | Идентификатор записи `user-course` |
+| `access_started_at` | `object/date` | Дата начала доступа |
+| `access_expired_at` | `object/date` | Дата окончания доступа |
+| `activator_class` | `object` | Механизм выдачи доступа: `PremiumAccessActivator`, `RevokeAccessActivator`, `StandardAccessActivator`, `ChangeAccessDurationActivator`, `MonthPremiumAccessActivator` |
+
+Комментарий: теперь таблица лучше вписывается в схему, потому что `users_course_id` почти полностью покрывается в `user_lessons` и `wk_users_courses_actions`.
+
+### `wk_users_courses_actions.csv`
+
+Роль: журнал действий в рамках `users_course_id`.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический ID строки |
+| `user_id` | `object/int` | Идентификатор пользователя |
+| `users_course_id` | `object/int` | Идентификатор записи `user-course` |
+| `sourceable_id` | `float64` | Идентификатор связанного объекта |
+| `action` | `object` | Действие, например `visit_video` |
+| `created_at` | `object/datetime` | Время создания события |
+| `updated_at` | `object/datetime` | Время обновления события |
+| `lesson_id` | `float64` | Идентификатор урока, если он известен |
+
+Комментарий: таблица хорошо дополняет `user_lessons`; по парам `user_id + users_course_id` они почти полностью совпадают.
 
 ### `user_answers.csv`
 
 Роль: попытки и отправки ответов пользователя.
-
-Ограничение: нет `course_id`, связь только по `user_id`.
 
 | Колонка | Тип | Описание |
 |---|---|---|
@@ -102,7 +147,7 @@
 | `points` | `float64` | Набранные баллы |
 | `max_attempts` | `int64` | Максимум попыток: `1`, `2` |
 | `results` | `object` | Детальные результаты проверки |
-| `skipped` | `object/bool` | Признак пропуска: `True`, `False` |
+| `skipped` | `object/bool` | Пропуск: `True`, `False` |
 | `resource_type` | `object` | Тип ресурса: `Lesson`, `Training`, `Homework` |
 | `submitted_at` | `object/datetime` | Время отправки |
 | `wk_partial_answer` | `object` | Признак частичного ответа: `True`, `False` |
@@ -112,8 +157,6 @@
 ### `user_trainings.csv`
 
 Роль: прохождение тренингов и тестов.
-
-Ограничение: нет `course_id`, связь только по `user_id`.
 
 | Колонка | Тип | Описание |
 |---|---|---|
@@ -153,19 +196,17 @@
 | `title` | `object` | Название бейджа: `Олимпиадник`, `Я решаю` |
 | `level` | `int64` | Уровень бейджа: `1`, `2`, `3`, `4`, `5` |
 | `quota` | `int64` | Порог получения: `1`, `5`, `25`, `50`, `100`, `500` |
-| `special` | `bool` | Специальный бейдж или нет: `True`, `False` |
+| `special` | `bool` | Специальный бейдж: `True`, `False` |
 | `unlocked_small_image_url` | `object` | URL картинки бейджа |
 
 ### `users.csv`
 
 Роль: профиль пользователя.
 
-Ограничение: в текущей выгрузке нет явного `user_id`.
-
 | Колонка | Тип | Описание |
 |---|---|---|
 | `Unnamed: 0` | `int64` | Технический ID строки |
-| `last_explainer_seen_→_course` | `float64` | Последний seen explainer/course: `1.0`, `2.0`, `3.0`, `4.0`, `5.0`, `6.0`, `7.0` |
+| `last_explainer_seen_→_course` | `float64` | Последний seen explainer/course: `1.0`-`7.0` |
 | `created_at` | `object/datetime` | Дата создания пользователя |
 | `updated_at` | `object/datetime` | Последнее обновление записи |
 | `type` | `object` | Тип пользователя: `User::Pupil`, `User::Agent` |
@@ -186,25 +227,11 @@
 | `d_updated_at` | `object/datetime` | Техническое время обновления в DWH |
 | `wk_gender` | `float64` | Пол: `1.0`, `2.0` |
 
-### `user_access_histories.csv`
-
-Роль: периоды доступа к курсу.
-
-Ограничение: `users_course_id` сейчас не связывается с `users_courses.csv`.
-
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `users_course_id` | `int64` | Идентификатор записи `user-course` в другой системе/выгрузке |
-| `access_started_at` | `object/date` | Дата начала доступа |
-| `access_expired_at` | `object/date` | Дата окончания доступа |
-| `activator_class` | `object` | Механизм выдачи доступа: `Courses::AccessActivators::PremiumAccessActivator`, `Courses::AccessActivators::RevokeAccessActivator`, `Courses::AccessActivators::StandardAccessActivator`, `Courses::AccessActivators::ChangeAccessDurationActivator`, `Courses::AccessActivators::MonthPremiumAccessActivator` |
+Комментарий: прямого `user_id` по-прежнему нет, поэтому связь с остальными таблицами остаётся гипотетической.
 
 ### `user_activity_histories.csv`
 
 Роль: действия по пользовательскому уроку.
-
-Ограничение: нет надёжной связи `user_lesson_id -> user_id/course_id`.
 
 | Колонка | Тип | Описание |
 |---|---|---|
@@ -217,8 +244,6 @@
 
 Роль: просмотры медиа / вопросов.
 
-Ограничение: нет явной связи с пользователем и курсом.
-
 | Колонка | Тип | Описание |
 |---|---|---|
 | `Unnamed: 0` | `int64` | Технический ID строки |
@@ -228,6 +253,32 @@
 | `count` | `object` | Число просмотров / срабатываний |
 | `current_points` | `float64` | Текущие баллы |
 | `recommended_points` | `float64` | Рекомендуемые баллы |
+
+### `xp_awards.csv`
+
+Роль: журнал начисления XP.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический ID строки |
+| `xp` | `int64` | Начисленный XP |
+| `created_at` | `object/datetime` | Время начисления |
+| `user_id` | `int64` | Пользователь |
+
+Комментарий: по смыслу это отдельная факт-таблица XP, а не дубликат `lessons.csv`, как было в старой выгрузке.
+
+### `xp_ratings.csv`
+
+Роль: рейтинг пользователя по XP.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический ID строки |
+| `user_id` | `int64` | Пользователь |
+| `xp` | `int64` | XP в рамках рейтинга |
+| `type` | `object` | Тип рейтинга: например `XP::Ratings::AllTime`, `XP::Ratings::Weekly` |
+| `created_at` | `object/datetime` | Время создания записи |
+| `updated_at` | `object/datetime` | Время обновления записи |
 
 ## ER-диаграмма
 
@@ -242,20 +293,37 @@ erDiagram
         date access_finished_at
         float wk_points
         float wk_max_points
-        float wk_max_viewable_lessons
-        float wk_max_task_count
-        date wk_officially_started_at
-        datetime wk_course_completed_at
     }
 
     LESSONS {
         int course_id
         float lesson_number
-        boolean conspect_expected
-        boolean task_expected
         float wk_task_count
         float wk_max_points
-        float wk_video_duration
+    }
+
+    USER_LESSONS {
+        int user_id
+        int lesson_id
+        int users_course_id
+        boolean video_visited
+        boolean translation_visited
+        boolean solved
+    }
+
+    USER_ACCESS_HISTORIES {
+        int users_course_id
+        date access_started_at
+        date access_expired_at
+        string activator_class
+    }
+
+    WK_USERS_COURSES_ACTIONS {
+        int user_id
+        int users_course_id
+        string action
+        datetime created_at
+        int lesson_id
     }
 
     USER_ANSWERS {
@@ -263,25 +331,15 @@ erDiagram
         int task_id
         int attempts
         boolean solved
-        float points
-        int max_attempts
-        string resource_type
         datetime submitted_at
-        float performance
     }
 
     USER_TRAININGS {
         int user_id
         int training_id
-        int solved_tasks_count
-        float earned_points
-        string type
         string state
-        int submitted_answers_count
-        datetime started_at
-        datetime finished_at
-        int attempts
         float mark
+        datetime started_at
     }
 
     USER_AWARD_BADGES {
@@ -292,49 +350,38 @@ erDiagram
 
     AWARD_BADGES {
         int award_badge_id
-        string name
         string title
         int level
-        int quota
-        boolean special
     }
 
     USERS {
         datetime created_at
         datetime updated_at
         int sign_in_count
-        datetime current_sign_in_at
-        datetime last_sign_in_at
-        int grade_id
         float xp
-        int wk_gender
     }
 
-    USER_ACCESS_HISTORIES {
-        int users_course_id
-        date access_started_at
-        date access_expired_at
-        string activator_class
-    }
-
-    USER_ACTIVITY_HISTORIES {
-        int user_lesson_id
-        string action
+    XP_AWARDS {
+        int user_id
+        int xp
         datetime created_at
     }
 
-    WK_MEDIA_VIEW_SESSIONS {
-        int question_id
-        datetime reviewed_at
-        int state
-        int count
-        float current_points
-        float recommended_points
+    XP_RATINGS {
+        int user_id
+        int xp
+        string type
+        datetime updated_at
     }
 
     USERS_COURSES ||--o{ LESSONS : "course_id"
-    USERS_COURSES }o--o{ USER_ANSWERS : "user_id only"
-    USERS_COURSES }o--o{ USER_TRAININGS : "user_id only"
-    USERS_COURSES }o--o{ USER_AWARD_BADGES : "user_id only"
+    USER_ACCESS_HISTORIES ||--o{ USER_LESSONS : "users_course_id"
+    USER_ACCESS_HISTORIES ||--o{ WK_USERS_COURSES_ACTIONS : "users_course_id"
+    USER_LESSONS }o--o{ WK_USERS_COURSES_ACTIONS : "user_id + users_course_id"
+    USER_ANSWERS }o--o{ USERS_COURSES : "user_id only"
+    USER_TRAININGS }o--o{ USERS_COURSES : "user_id only"
+    USER_AWARD_BADGES }o--o{ USERS_COURSES : "user_id only"
     AWARD_BADGES ||--o{ USER_AWARD_BADGES : "award_badge_id"
+    XP_AWARDS }o--o{ USERS_COURSES : "user_id only"
+    XP_RATINGS }o--o{ USERS_COURSES : "user_id only"
 ```
