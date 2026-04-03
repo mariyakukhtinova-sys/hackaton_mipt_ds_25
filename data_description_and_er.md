@@ -2,288 +2,257 @@
 
 ## Коротко
 
-Текущее состояние папки `src`:
+Описание ниже опирается в первую очередь на текстовую Notion-документацию. Если столбец в документации не описан, дано короткое техническое описание по фактическому CSV. Для временных полей указан диапазон непустых значений.
 
-- `award_badges.csv`
-- `lessons.csv`
-- `user_access_histories.csv`
-- `user_activity_histories.csv`
-- `user_answers.csv`
-- `user_award_badges.csv`
-- `user_lessons.csv`
-- `user_trainings.csv`
-- `users.csv`
-- `users_courses.csv`
-- `wk_media_view_sessions.csv`
-- `wk_users_courses_actions.csv`
-- `xp_awards.csv`
-- `xp_ratings.csv`
+Важно:
 
-По текущим MD5-хэшам **полных дубликатов больше нет**.
+- `Unnamed: 0` во всех CSV выглядит как локальный технический индекс строки.
+- Многие ID в сырых CSV записаны с разделителем тысяч, например `718,902`.
 
-Самые полезные связи сейчас:
+Подтвержденные связи:
 
-- `users_courses.course_id` -> `lessons.course_id`
-- `user_award_badges.award_badge_id` -> `award_badges` (по смыслу и диапазону значений)
-- `user_lessons.users_course_id` -> `user_access_histories.users_course_id`
-- `wk_users_courses_actions.users_course_id` -> `user_access_histories.users_course_id`
-- `user_lessons` <-> `wk_users_courses_actions` почти полностью совпадают по парам `user_id + users_course_id`
+- `users.id -> users_courses.user_id`
+- `users.id -> user_answers.user_id`
+- `users.id -> user_trainings.user_id`
+- `users.id -> user_lessons.user_id`
+- `users.id -> wk_users_courses_actions.user_id`
+- `users.id -> wk_media_view_sessions.viewer_id`
+- `user_lessons.users_course_id -> user_access_histories.users_course_id`
+- `wk_users_courses_actions.users_course_id -> user_access_histories.users_course_id`
+- `users_courses.course_id -> lessons.course_id`
 
-## `Unnamed: 0`
+Неполные или не до конца подтвержденные связи:
 
-Во всех таблицах `Unnamed: 0`:
-
-- уникален
-- без пропусков
-- идёт подряд от `0` до `n-1`
-
-Это технический индекс строки. Внутри таблицы он может играть роль локального ID записи, но как внешний ключ между таблицами не используется.
+- `user_activity_histories.user_lesson_id`: Notion описывает его как ID урока пользователя из `user_lessons`, но в фактическом `user_lessons.csv` такого столбца нет.
+- `user_award_badges.award_badge_id -> award_badges`: связь логична по документации, но в `award_badges.csv` нет явного ключевого столбца `award_badge_id`.
+- `user_answers`: в Notion есть `resource_id`, но в текущем CSV этого столбца нет.
+- `wk_media_view_sessions` связан с пользователем, но не содержит явного `lesson_id` или `course_id`.
 
 ## Таблицы и колонки
 
-### `users_courses.csv`
+### `users.csv` (95 395 строк)
 
-Роль: основная таблица `user-course`.
-
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `user_id` | `int64` | Идентификатор пользователя |
-| `course_id` | `int64` | Идентификатор курса |
-| `state` | `object` | Статус записи: `active`, `inactive` |
-| `created_at` | `object/datetime` | Когда пользователь попал на курс |
-| `updated_at` | `object/datetime` | Последнее обновление записи |
-| `group_template_id` | `float64` | Идентификатор шаблона/группы |
-| `access_finished_at` | `object/date` | Когда заканчивается доступ к курсу |
-| `wk_points` | `float64` | Набранные баллы |
-| `wk_max_points` | `float64` | Максимально возможные баллы |
-| `wk_max_viewable_lessons` | `float64` | Сколько уроков доступно для просмотра |
-| `wk_max_task_count` | `float64` | Максимальное число задач |
-| `wk_officially_started_at` | `object/date` | Официальная дата старта курса |
-| `wk_course_completed_at` | `object/datetime` | Дата завершения курса |
-
-### `lessons.csv`
-
-Роль: справочник/структура уроков внутри курса.
+Пользователи, зарегистрированные в LMS.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `course_id` | `int64` | Идентификатор курса |
-| `conspect_expected` | `bool` | Ожидается ли теория/конспект: `True`, `False` |
-| `task_expected` | `bool` | Ожидается ли задание: `True`, `False` |
-| `lesson_number` | `float64` | Порядковый номер урока |
-| `wk_max_points` | `float64` | Максимум баллов за урок |
-| `wk_task_count` | `float64` | Число задач в уроке |
-| `wk_survival_training_expected` | `bool` | Есть ли survival training: `True`, `False` |
-| `wk_scratch_playground_enabled` | `bool` | Включена ли практика: `True`, `False` |
-| `wk_attendance_tracking_enabled` | `bool` | Включён ли трекинг посещаемости: `True`, `False` |
-| `wk_video_duration` | `float64` | Длительность видео |
-| `wk_attendance_tracking_disabled_at` | `object/datetime` | Когда отключили attendance tracking |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `id` | `int64` | Идентификатор пользователя |
+| `last_explainer_seen_→_course` | `float64` | Показывать ли пользователю онбординг на курс и с какого шага; всего 7 шагов: `1.0`, `2.0`, `3.0`, `4.0`, `5.0`, `6.0`, `7.0` |
+| `created_at` | `object/datetime` | Время создания пользователя. Диапазон: `2025-01-31 14:16:00` - `2026-03-27 16:13:00` |
+| `updated_at` | `object/datetime` | Время обновления записи пользователя. Диапазон: `2025-05-01 02:24:00` - `2025-05-31 20:35:00` |
+| `type` | `object` | Тип пользователя: `User::Agent`, `User::Pupil` |
+| `remember_created_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-01-31 14:16:00` - `2026-03-27 16:44:00` |
+| `sign_in_count` | `int64` | Количество логинов пользователя в LMS |
+| `current_sign_in_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-05-01 02:24:00` - `2025-05-31 21:45:00` |
+| `last_sign_in_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-02-17 06:46:00` - `2026-03-27 16:47:00` |
+| `grade_id` | `object/int` | Класс пользователя |
+| `subscribed` | `bool` | Подписан ли пользователь на email-рассылки: `False`, `True` |
+| `grade_checked` | `bool` | Ненужное поле: `False`, `True` |
+| `is_teacher` | `bool` | Является ли пользователь учителем: `False` |
+| `timezone` | `object` | Таймзона пользователя |
+| `grade_changed_at` | `object/datetime` | Время изменения класса. Диапазон: `2025-02-04 15:51:00` - `2026-03-26 14:58:00` |
+| `xp` | `object/int` | Ненужное поле |
+| `d_wk_school_id` | `object/int` | Идентификатор школы пользователя |
+| `d_wk_municipal_id` | `object/int` | Идентификатор города/муниципалитета пользователя |
+| `d_wk_region_id` | `object/int` | Идентификатор региона пользователя |
+| `d_updated_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-05-01 02:05:00` - `2025-05-31 19:43:00` |
+| `wk_gender` | `float64` | Пол пользователя: `1.0`, `2.0` |
 
-### `user_lessons.csv`
+### `users_courses.csv` (290 835 строк)
 
-Роль: связь пользователя с конкретным уроком внутри конкретного `users_course_id`.
+Какие курсы проходит каждый пользователь и общая информация по ним: есть ли доступ, накопленные баллы и т.п.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
 | `user_id` | `object/int` | Идентификатор пользователя |
-| `lesson_id` | `object/int` | Идентификатор урока |
-| `group_id` | `object/int` | Идентификатор группы |
-| `video_visited` | `bool` | Заходил ли на видео: `True`, `False` |
-| `translation_visited` | `bool` | Заходил ли на перевод/текст: `True`, `False` |
-| `users_course_id` | `object/int` | Идентификатор записи user-course |
-| `solved` | `bool` | Решён ли урок/набор задач: `True`, `False` |
-| `solved_tasks_count` | `int64` | Число решённых задач |
-| `wk_points` | `float64` | Баллы за урок |
-| `video_viewed` | `bool` | Просмотрено ли видео: `True`, `False` |
-| `wk_solved_task_count` | `float64` | Число решённых задач в wk-логике |
+| `course_id` | `object/int` | Идентификатор курса |
+| `state` | `object` | Активен ли доступ пользователя к курсу: `active`, `inactive` |
+| `created_at` | `object/datetime` | Время создания записи `user-course`. Диапазон: `2025-02-07 11:33:00` - `2026-03-26 20:23:00` |
+| `updated_at` | `object/datetime` | Время обновления записи `user-course`. Диапазон: `2025-02-19 07:00:00` - `2026-03-27 01:49:00` |
+| `access_finished_at` | `object/date` | Таймкод: когда статус стал `inactive`; если сейчас статус `active`, то когда доступ закончится. Диапазон: `2025-02-16` - `2026-09-26` |
+| `wk_points` | `float64` | Сколько баллов внутри курса набрал пользователь |
+| `wk_max_points` | `float64` | Максимальное количество баллов, которое можно набрать на курсе |
+| `wk_max_viewable_lessons` | `float64` | Максимальное количество уроков, которые можно пройти на курсе |
+| `wk_max_task_count` | `float64` | Максимальное количество заданий, которые можно решить на курсе |
+| `wk_officially_started_at` | `object/date` | Таймкод, когда пользователь начал прохождение курса. Диапазон: `2023-06-21` - `2026-02-23` |
+| `wk_course_completed_at` | `object/datetime` | Таймкод, когда пользователь завершил курс. Диапазон: `2026-01-12 14:35:00` - `2026-03-26 17:26:00` |
 
-Комментарий: это одна из самых полезных новых таблиц, потому что она связывает `user_id`, `lesson_id` и `users_course_id`.
+### `lessons.csv` (3 369 строк)
 
-### `user_access_histories.csv`
-
-Роль: периоды доступа к курсу.
-
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `users_course_id` | `int64` | Идентификатор записи `user-course` |
-| `access_started_at` | `object/date` | Дата начала доступа |
-| `access_expired_at` | `object/date` | Дата окончания доступа |
-| `activator_class` | `object` | Механизм выдачи доступа: `PremiumAccessActivator`, `RevokeAccessActivator`, `StandardAccessActivator`, `ChangeAccessDurationActivator`, `MonthPremiumAccessActivator` |
-
-Комментарий: теперь таблица лучше вписывается в схему, потому что `users_course_id` почти полностью покрывается в `user_lessons` и `wk_users_courses_actions`.
-
-### `wk_users_courses_actions.csv`
-
-Роль: журнал действий в рамках `users_course_id`.
+Все существующие в LMS уроки по всем курсам.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `course_id` | `object/int` | ID курса, к которому относится урок |
+| `conspect_expected` | `bool` | Привязан ли к уроку конспект: `False`, `True` |
+| `task_expected` | `bool` | Привязаны ли к уроку проверочные задания: `False`, `True` |
+| `lesson_number` | `float64` | Порядковый номер урока в курсе |
+| `wk_max_points` | `float64` | Максимальное количество баллов, которое можно заработать за задания к уроку |
+| `wk_task_count` | `float64` | Количество заданий к уроку |
+| `wk_survival_training_expected` | `bool` | Привязан ли к уроку тренажер на выживание: `False`, `True` |
+| `wk_scratch_playground_enabled` | `bool` | Подключена ли внешняя интеграция со Scratch: `False`, `True` |
+| `wk_attendance_tracking_enabled` | `bool` | Отслеживается ли посещение урока: `False`, `True` |
+| `wk_video_duration` | `float64` | Длина видео к уроку |
+| `wk_attendance_tracking_disabled_at` | `object/datetime` | Таймкод, когда отключили отслеживание посещения урока. Диапазон: `2025-12-23 22:25:00` - `2026-01-19 11:05:00` |
+
+### `user_access_histories.csv` (667 124 строки)
+
+История выдачи доступа пользователей к курсам.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `users_course_id` | `int64` | ID курса из `users_courses` |
+| `access_started_at` | `object/date` | Таймкод начала доступа к курсу. Диапазон: `2025-02-07` - `2026-03-27` |
+| `access_expired_at` | `object/date` | Таймкод истечения срока доступа к курсу. Диапазон: `2025-02-16` - `2026-09-27` |
+| `activator_class` | `object` | Тип доступа: `Courses::AccessActivators::ChangeAccessDurationActivator`, `Courses::AccessActivators::MonthPremiumAccessActivator`, `Courses::AccessActivators::PremiumAccessActivator`, `Courses::AccessActivators::RevokeAccessActivator`, `Courses::AccessActivators::StandardAccessActivator` |
+
+### `user_lessons.csv` (3 070 664 строки)
+
+Все существующие в LMS уроки по всем курсам, привязанные к пользователям.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический индекс строки |
 | `user_id` | `object/int` | Идентификатор пользователя |
-| `users_course_id` | `object/int` | Идентификатор записи `user-course` |
-| `sourceable_id` | `float64` | Идентификатор связанного объекта |
-| `action` | `object` | Действие, например `visit_video` |
-| `created_at` | `object/datetime` | Время создания события |
-| `updated_at` | `object/datetime` | Время обновления события |
-| `lesson_id` | `float64` | Идентификатор урока, если он известен |
+| `lesson_id` | `object/int` | ID урока из `lessons` |
+| `group_id` | `object/int` | ID параллели |
+| `video_visited` | `bool` | Была ли открыта пользователем запись вебинара в уроке: `False`, `True` |
+| `translation_visited` | `bool` | Была ли открыта пользователем онлайн-трансляция вебинара в уроке: `False`, `True` |
+| `users_course_id` | `object/int` | ID курса из `users_courses` |
+| `solved` | `bool` | Решены ли пользователем все задания из урока: `False`, `True` |
+| `solved_tasks_count` | `int64` | Количество решенных пользователем заданий из урока |
+| `wk_points` | `float64` | Набранные пользователем баллы за этот урок |
+| `video_viewed` | `bool` | Просмотрел ли пользователь видео к уроку: `False`, `True` |
+| `wk_solved_task_count` | `float64` | Количество решенных пользователем заданий по уроку |
 
-Комментарий: таблица хорошо дополняет `user_lessons`; по парам `user_id + users_course_id` они почти полностью совпадают.
+Комментарий: в текстовой документации для `user_lessons` отдельный `user_lesson_id` не перечислен.
 
-### `user_answers.csv`
+### `user_activity_histories.csv` (3 031 137 строк)
 
-Роль: попытки и отправки ответов пользователя.
-
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `user_id` | `int64` | Идентификатор пользователя |
-| `task_id` | `int64` | Идентификатор задачи |
-| `attempts` | `int64` | Число попыток: `0`, `1` |
-| `solved` | `object/bool` | Решена ли задача: `True`, `False` |
-| `points` | `float64` | Набранные баллы |
-| `max_attempts` | `int64` | Максимум попыток: `1`, `2` |
-| `results` | `object` | Детальные результаты проверки |
-| `skipped` | `object/bool` | Пропуск: `True`, `False` |
-| `resource_type` | `object` | Тип ресурса: `Lesson`, `Training`, `Homework` |
-| `submitted_at` | `object/datetime` | Время отправки |
-| `wk_partial_answer` | `object` | Признак частичного ответа: `True`, `False` |
-| `performance` | `float64` | Нормализованная успешность: `0.0`, `0.5`, `1.0` |
-| `async_check_status` | `int64` | Статус асинхронной проверки: `0`, `2` |
-
-### `user_trainings.csv`
-
-Роль: прохождение тренингов и тестов.
+История активностей пользователей в LMS.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `user_id` | `int64` | Идентификатор пользователя |
-| `training_id` | `int64` | Идентификатор тренинга |
-| `solved_tasks_count` | `int64` | Сколько задач решено |
-| `earned_points` | `float64` | Набранные баллы |
-| `type` | `object` | Тип тренинга: `UserTrainings::LessonTraining`, `UserTrainings::RegularTraining`, `UserTrainings::OlympiadTraining` |
-| `state` | `object` | Статус: `checked`, `started` |
-| `submitted_answers_count` | `int64` | Число отправленных ответов |
-| `started_at` | `object/datetime` | Время старта |
-| `finished_at` | `object/datetime` | Время завершения |
-| `attempts` | `int64` | Число попыток; в выгрузке только `1` |
-| `mark` | `float64` | Оценка: `2.0`, `3.0`, `4.0`, `5.0` |
-| `mark_saved_at` | `object/datetime` | Когда сохранена оценка |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `user_lesson_id` | `object/int` | ID урока пользователя из `user_lessons` |
+| `action` | `object` | Действие пользователя: `show_conspect`, `visit_translation`, `visit_video` |
+| `created_at` | `object/datetime` | Таймкод действия. Диапазон: `2020-11-25 13:36:00` - `2026-03-31 15:20:00` |
 
-### `user_award_badges.csv`
+Комментарий: Notion-документация явно ссылается на `user_lessons`, но в текущем `user_lessons.csv` нет столбца `user_lesson_id`.
 
-Роль: выдача бейджа пользователю.
+### `user_answers.csv` (15 176 182 строки)
+
+Ответы пользователей по всем заданиям.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `award_badge_id` | `int64` | Тип выданного бейджа: `1`, `2`, `3`, `4`, `5`, `6` |
-| `user_id` | `int64` | Идентификатор пользователя |
-| `created_at` | `object/datetime` | Время выдачи |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `user_id` | `object/int` | Идентификатор пользователя |
+| `task_id` | `object/int` | ID задачи в системе |
+| `attempts` | `int64` | Количество сделанных пользователем попыток: `0`, `1`, `2` |
+| `solved` | `object/bool` | Решено ли задание: `False`, `True` |
+| `points` | `float64` | Количество заработанных баллов за задание |
+| `max_attempts` | `int64` | Максимальное количество попыток, доступных для задачи: `1`, `2` |
+| `results` | `object` | Баллы за попытки |
+| `skipped` | `object/bool` | Было ли задание пропущено пользователем: `False`, `True` |
+| `resource_type` | `object` | В рамках какой активности было взаимодействие с задачей: `Homework`, `Lesson`, `Training` |
+| `submitted_at` | `object/datetime` | Таймкод сдачи пользователем последнего ответа. Диапазон: `2025-02-17 16:43:00` - `2026-03-31 16:04:00` |
+| `wk_partial_answer` | `object/bool` | Ответ дан частично (`True`) или полностью (`False`): `False`, `True` |
+| `performance` | `float64` | Ненужное поле: `0.0`, `0.5`, `1.0` |
+| `async_check_status` | `int64` | Статус готовности для асинхронных задач: `0`, `1`, `2` |
 
-### `award_badges.csv`
+Комментарий: в Notion дополнительно описан `resource_id`, но в текущем CSV этого столбца нет.
 
-Роль: справочник бейджей.
+### `user_trainings.csv` (427 628 строк)
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `name` | `object` | Системное имя бейджа: `AwardBadges::OlympiadParticipant`, `AwardBadges::Solving` |
-| `title` | `object` | Название бейджа: `Олимпиадник`, `Я решаю` |
-| `level` | `int64` | Уровень бейджа: `1`, `2`, `3`, `4`, `5` |
-| `quota` | `int64` | Порог получения: `1`, `5`, `25`, `50`, `100`, `500` |
-| `special` | `bool` | Специальный бейдж: `True`, `False` |
-| `unlocked_small_image_url` | `object` | URL картинки бейджа |
-
-### `users.csv`
-
-Роль: профиль пользователя.
+Какие тренинги проходит каждый пользователь.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `last_explainer_seen_→_course` | `float64` | Последний seen explainer/course: `1.0`-`7.0` |
-| `created_at` | `object/datetime` | Дата создания пользователя |
-| `updated_at` | `object/datetime` | Последнее обновление записи |
-| `type` | `object` | Тип пользователя: `User::Pupil`, `User::Agent` |
-| `remember_created_at` | `object/datetime` | Техническое поле remember-me |
-| `sign_in_count` | `int64` | Число входов |
-| `current_sign_in_at` | `object/datetime` | Последний текущий вход |
-| `last_sign_in_at` | `object/datetime` | Предыдущий вход |
-| `grade_id` | `int64` | Класс/уровень обучения |
-| `subscribed` | `bool` | Подписан ли пользователь: `True`, `False` |
-| `grade_checked` | `bool` | Проверен ли класс: `True`, `False` |
-| `is_teacher` | `bool` | Признак преподавателя; в выгрузке только `False` |
-| `timezone` | `object` | Часовой пояс |
-| `grade_changed_at` | `object/datetime` | Когда менялся класс |
-| `xp` | `int64` | Очки опыта |
-| `d_wk_school_id` | `float64` | Идентификатор школы |
-| `d_wk_municipal_id` | `float64` | Идентификатор муниципалитета |
-| `d_wk_region_id` | `float64` | Идентификатор региона |
-| `d_updated_at` | `object/datetime` | Техническое время обновления в DWH |
-| `wk_gender` | `float64` | Пол: `1.0`, `2.0` |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `user_id` | `object/int` | Идентификатор пользователя |
+| `training_id` | `object/int` | ID тренинга |
+| `solved_tasks_count` | `int64` | Количество решенных пользователем заданий |
+| `earned_points` | `float64` | Набранный балл за весь тренинг |
+| `type` | `object` | Тип тренинга: `UserTrainings::LessonTraining`, `UserTrainings::OlympiadTraining`, `UserTrainings::RegularTraining` |
+| `state` | `object` | Статус прохождения: `checked`, `started` |
+| `submitted_answers_count` | `int64` | Количество ответов, отправленных в рамках тренинга |
+| `started_at` | `object/datetime` | Таймкод начала прохождения тренинга. Диапазон: `2025-02-17 08:47:00` - `2026-03-27 17:07:00` |
+| `finished_at` | `object/datetime` | Таймкод завершения прохождения тренинга. Диапазон: `2025-02-17 16:44:00` - `2026-03-27 17:06:00` |
+| `attempts` | `int64` | Количество попыток пройти тренинг: `1` |
+| `mark` | `float64` | Оценка за прохождение тренинга |
+| `mark_saved_at` | `object/datetime` | Таймкод выставления оценки. Диапазон: `2025-02-17 16:44:00` - `2026-03-27 17:06:00` |
 
-Комментарий: прямого `user_id` по-прежнему нет, поэтому связь с остальными таблицами остаётся гипотетической.
+### `wk_users_courses_actions.csv` (12 909 207 строк)
 
-### `user_activity_histories.csv`
-
-Роль: действия по пользовательскому уроку.
+Активность пользователей на курсах.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `user_lesson_id` | `object` | Идентификатор пользовательского урока |
-| `action` | `object` | Тип действия: `visit_translation`, `visit_video`, `show_conspect` |
-| `created_at` | `object/datetime` | Время действия |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `user_id` | `object/int` | Идентификатор пользователя |
+| `users_course_id` | `object/int` | ID записи из `users_courses` |
+| `sourceable_id` | `float64` | Ненужное поле |
+| `action` | `object` | Совершенное пользователем действие: `scratch_playground_visited`, `start_training`, `user_answer`, `visit_preparation_material`, `visit_translation`, `visit_video` |
+| `created_at` | `object/datetime` | Таймкод совершения действия. Диапазон: `2025-02-17 11:35:00` - `2026-03-31 14:12:00` |
+| `updated_at` | `object/datetime` | Последнее обновление строки. Диапазон: `2025-02-17 11:35:00` - `2026-03-31 14:12:00` |
+| `lesson_id` | `object/int` | ID урока из `lessons`, в рамках которого производилось действие |
 
-### `wk_media_view_sessions.csv`
+### `wk_media_view_sessions.csv` (852 358 строк)
 
-Роль: просмотры медиа / вопросов.
-
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `question_id` | `int64` | Идентификатор вопроса / медиа-единицы |
-| `reviewed_at` | `object/datetime` | Время просмотра/проверки |
-| `state` | `int64` | Технический статус: `1`, `2`, `3`, `4` |
-| `count` | `object` | Число просмотров / срабатываний |
-| `current_points` | `float64` | Текущие баллы |
-| `recommended_points` | `float64` | Рекомендуемые баллы |
-
-### `xp_awards.csv`
-
-Роль: журнал начисления XP.
+Данные по сессиям просмотров медиа-контента внутри LMS.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `xp` | `int64` | Начисленный XP |
-| `created_at` | `object/datetime` | Время начисления |
-| `user_id` | `int64` | Пользователь |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `resource_type` | `object` | Какой тип контента смотрел пользователь: `Group`, `Lesson` |
+| `viewer_id` | `object/int` | ID пользователя из `users` |
+| `segments_total` | `int64` | Общее количество сегментов медиа |
+| `viewed_segments_count` | `int64` | Количество просмотренных сегментов |
+| `started_at` | `object/datetime` | Таймкод начала просмотра. Диапазон: `2025-03-28 05:58:00` - `2026-03-27 14:08:00` |
+| `kind` | `object` | Вид медиа: `kinescope`, `ulms_live`, `ulms_vod` |
 
-Комментарий: по смыслу это отдельная факт-таблица XP, а не дубликат `lessons.csv`, как было в старой выгрузке.
+### `award_badges.csv` (6 строк)
 
-### `xp_ratings.csv`
-
-Роль: рейтинг пользователя по XP.
+Типы наград в LMS.
 
 | Колонка | Тип | Описание |
 |---|---|---|
-| `Unnamed: 0` | `int64` | Технический ID строки |
-| `user_id` | `int64` | Пользователь |
-| `xp` | `int64` | XP в рамках рейтинга |
-| `type` | `object` | Тип рейтинга: например `XP::Ratings::AllTime`, `XP::Ratings::Weekly` |
-| `created_at` | `object/datetime` | Время создания записи |
-| `updated_at` | `object/datetime` | Время обновления записи |
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `name` | `object` | Ненужное поле |
+| `title` | `object` | Название награды: `Олимпиадник`, `Я решаю` |
+| `level` | `int64` | Уровень награды |
+| `quota` | `int64` | Что нужно сделать для получения награды |
+| `special` | `bool` | Категория награды: `False`, `True` |
+| `unlocked_small_image_url` | `object` | Ссылка на иллюстрацию |
+
+### `user_award_badges.csv` (252 843 строки)
+
+Присвоенные в LMS пользователям награды/достижения.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `Unnamed: 0` | `int64` | Технический индекс строки |
+| `award_badge_id` | `int64` | ID награды из `award_badges` |
+| `user_id` | `object/int` | ID пользователя из `users` |
+| `created_at` | `object/datetime` | Таймкод присвоения награды. Диапазон: `2023-10-03 12:53:00` - `2026-03-27 17:18:00` |
 
 ## ER-диаграмма
 
 ```mermaid
 erDiagram
+    USERS {
+        int id
+        datetime created_at
+        datetime updated_at
+        int sign_in_count
+        int xp
+    }
+
     USERS_COURSES {
         int user_id
         int course_id
@@ -349,39 +318,37 @@ erDiagram
     }
 
     AWARD_BADGES {
-        int award_badge_id
+        int row_index
+        string name
         string title
         int level
     }
 
-    USERS {
-        datetime created_at
-        datetime updated_at
-        int sign_in_count
-        float xp
-    }
-
-    XP_AWARDS {
-        int user_id
-        int xp
+    USER_ACTIVITY_HISTORIES {
+        int user_lesson_id
+        string action
         datetime created_at
     }
 
-    XP_RATINGS {
-        int user_id
-        int xp
-        string type
-        datetime updated_at
+    WK_MEDIA_VIEW_SESSIONS {
+        int viewer_id
+        string resource_type
+        int segments_total
+        int viewed_segments_count
+        string kind
+        datetime started_at
     }
 
+    USERS ||--o{ USERS_COURSES : "id = user_id"
+    USERS ||--o{ USER_ANSWERS : "id = user_id"
+    USERS ||--o{ USER_TRAININGS : "id = user_id"
+    USERS ||--o{ USER_AWARD_BADGES : "id = user_id"
+    USERS ||--o{ USER_LESSONS : "id = user_id"
+    USERS ||--o{ WK_USERS_COURSES_ACTIONS : "id = user_id"
+    USERS ||--o{ WK_MEDIA_VIEW_SESSIONS : "id = viewer_id"
     USERS_COURSES ||--o{ LESSONS : "course_id"
     USER_ACCESS_HISTORIES ||--o{ USER_LESSONS : "users_course_id"
     USER_ACCESS_HISTORIES ||--o{ WK_USERS_COURSES_ACTIONS : "users_course_id"
     USER_LESSONS }o--o{ WK_USERS_COURSES_ACTIONS : "user_id + users_course_id"
-    USER_ANSWERS }o--o{ USERS_COURSES : "user_id only"
-    USER_TRAININGS }o--o{ USERS_COURSES : "user_id only"
-    USER_AWARD_BADGES }o--o{ USERS_COURSES : "user_id only"
-    AWARD_BADGES ||--o{ USER_AWARD_BADGES : "award_badge_id"
-    XP_AWARDS }o--o{ USERS_COURSES : "user_id only"
-    XP_RATINGS }o--o{ USERS_COURSES : "user_id only"
+    AWARD_BADGES ||--o{ USER_AWARD_BADGES : "badge type; ref key is implicit"
 ```
