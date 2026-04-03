@@ -23,10 +23,12 @@
 
 Неполные или не до конца подтвержденные связи:
 
-- `user_activity_histories.user_lesson_id`: Notion описывает его как ID урока пользователя из `user_lessons`, но в фактическом `user_lessons.csv` такого столбца нет.
-- `user_award_badges.award_badge_id -> award_badges`: связь логична по документации, но в `award_badges.csv` нет явного ключевого столбца `award_badge_id`.
-- `user_answers`: в Notion есть `resource_id`, но в текущем CSV этого столбца нет.
-- `wk_media_view_sessions` связан с пользователем, но не содержит явного `lesson_id` или `course_id`.
+- В `users_courses.csv` отсутствует `users_course_id`, поэтому эту таблицу нельзя напрямую связать с `user_lessons.csv`, `wk_users_courses_actions.csv` и `user_access_histories.csv`, где `users_course_id` есть.
+- В `user_activity_histories.csv` есть `user_lesson_id`, но в `user_lessons.csv` отсутствует `user_lesson_id`, поэтому `user_activity_histories.csv` нельзя напрямую связать ни с одной другой таблицей.
+- В `lessons.csv` отсутствует `lesson_id`, поэтому эту таблицу нельзя напрямую связать с `user_lessons.csv` и `wk_users_courses_actions.csv`, где `lesson_id` есть и по документации ссылается на урок из `lessons`.
+- В `user_answers.csv` отсутствует `resource_id` из документации, а также нет `lesson_id`, `course_id` и `users_course_id`, поэтому эту таблицу нельзя напрямую связать с `lessons.csv`, `user_lessons.csv`, `users_courses.csv` и `wk_users_courses_actions.csv` на уровне конкретного урока или курса.
+- В `award_badges.csv` отсутствует `award_badge_id`, поэтому эту таблицу нельзя напрямую связать с `user_award_badges.csv`, где `award_badge_id` есть.
+- В `wk_media_view_sessions.csv` отсутствуют `lesson_id`, `course_id` и `users_course_id`, поэтому эту таблицу нельзя напрямую связать с course-level блоком: `users_courses.csv`, `user_lessons.csv`, `lessons.csv`, `wk_users_courses_actions.csv`. Она связана только с пользователем через `viewer_id`.
 
 ## Таблицы и колонки
 
