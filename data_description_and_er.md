@@ -1,247 +1,314 @@
-# Данные и ER-диаграмма
+# Данные и ER-диаграмма: текущая поставка
 
-## Коротко
+## Источники
 
-Описание ниже опирается в первую очередь на текстовую Notion-документацию. Если столбец в документации не описан, дано короткое техническое описание по фактическому CSV. Для временных полей указан диапазон непустых значений.
+Описание ниже опирается на:
+
+- текущие CSV из `hackathon/src`;
+- текстовую документацию: `Хакатон_Цифриум_пояснения_по_датасету_Кейс_ML.md`;
+- текстовую документацию по таргету: `target_Критерии_перевода.md`.
 
 Важно:
 
-- `Unnamed: 0` во всех CSV выглядит как локальный технический индекс строки.
-- Многие ID в сырых CSV записаны с разделителем тысяч, например `718,902`.
+- первый безымянный столбец в CSV выглядит как технический индекс выгрузки;
+- во многих ID значения записаны с разделителями тысяч, например `1,106,681`;
+- в нескольких ключевых таблицах есть явные `id` и `resource_id`, поэтому большая часть основных связей проверяется напрямую.
 
-Подтвержденные связи:
+## Коротко
 
-- `users.id -> users_courses.user_id`
-- `users.id -> user_answers.user_id`
-- `users.id -> user_trainings.user_id`
-- `users.id -> user_lessons.user_id`
-- `users.id -> wk_users_courses_actions.user_id`
-- `users.id -> wk_media_view_sessions.viewer_id`
-- `user_lessons.users_course_id -> user_access_histories.users_course_id`
-- `wk_users_courses_actions.users_course_id -> user_access_histories.users_course_id`
-- `users_courses.course_id -> lessons.course_id`
+Текущая поставка состоит из трёх слоёв:
 
-Неполные или не до конца подтвержденные связи:
+- сырые LMS-логи и справочники: `users`, `users_courses`, `lessons`, `user_lessons`, `user_answers`, `user_trainings`, `wk_users_courses_actions`, `wk_media_view_sessions`, `groups`, `trainings`, `lesson_tasks`, `homeworks`, `homework_items`, `user_access_histories`, `user_activity_histories`, `award_badges`, `user_award_badges`;
+- сводные таблицы для модулей: `stats__module_1` ... `stats__module_4`;
+- документация по критериям перевода между модулями.
 
-- В `users_courses.csv` отсутствует `users_course_id`, поэтому эту таблицу нельзя напрямую связать с `user_lessons.csv`, `wk_users_courses_actions.csv` и `user_access_histories.csv`, где `users_course_id` есть.
-- В `user_activity_histories.csv` есть `user_lesson_id`, но в `user_lessons.csv` отсутствует `user_lesson_id`, поэтому `user_activity_histories.csv` нельзя напрямую связать ни с одной другой таблицей.
-- В `lessons.csv` отсутствует `lesson_id`, поэтому эту таблицу нельзя напрямую связать с `user_lessons.csv` и `wk_users_courses_actions.csv`, где `lesson_id` есть и по документации ссылается на урок из `lessons`.
-- В `user_answers.csv` отсутствует `resource_id` из документации, а также нет `lesson_id`, `course_id` и `users_course_id`, поэтому эту таблицу нельзя напрямую связать с `lessons.csv`, `user_lessons.csv`, `users_courses.csv` и `wk_users_courses_actions.csv` на уровне конкретного урока или курса.
-- В `award_badges.csv` отсутствует `award_badge_id`, поэтому эту таблицу нельзя напрямую связать с `user_award_badges.csv`, где `award_badge_id` есть.
-- В `wk_media_view_sessions.csv` отсутствуют `lesson_id`, `course_id` и `users_course_id`, поэтому эту таблицу нельзя напрямую связать с course-level блоком: `users_courses.csv`, `user_lessons.csv`, `lessons.csv`, `wk_users_courses_actions.csv`. Она связана только с пользователем через `viewer_id`.
+Для таргета по документации особенно важны:
 
-## Таблицы и колонки
+- `wk_media_view_sessions`;
+- `groups`;
+- `lessons`;
+- `lesson_tasks`;
+- `trainings`;
+- `user_trainings`;
+- `homeworks`;
+- `homework_items`;
+- `users_courses`;
+- `user_answers`.
 
-### `users.csv` (95 395 строк)
+Сводные `stats__module_*` тоже важны:
 
-Пользователи, зарегистрированные в LMS.
+- `stats__module_1` и `stats__module_2` содержат готовый столбец `Статус` со значениями `Завершил`, `Отчислен`;
+- `stats__module_3` и `stats__module_4` не содержат `Статус`.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `id` | `int64` | Идентификатор пользователя |
-| `last_explainer_seen_→_course` | `float64` | Показывать ли пользователю онбординг на курс и с какого шага; всего 7 шагов: `1.0`, `2.0`, `3.0`, `4.0`, `5.0`, `6.0`, `7.0` |
-| `created_at` | `object/datetime` | Время создания пользователя. Диапазон: `2025-01-31 14:16:00` - `2026-03-27 16:13:00` |
-| `updated_at` | `object/datetime` | Время обновления записи пользователя. Диапазон: `2025-05-01 02:24:00` - `2025-05-31 20:35:00` |
-| `type` | `object` | Тип пользователя: `User::Agent`, `User::Pupil` |
-| `remember_created_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-01-31 14:16:00` - `2026-03-27 16:44:00` |
-| `sign_in_count` | `int64` | Количество логинов пользователя в LMS |
-| `current_sign_in_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-05-01 02:24:00` - `2025-05-31 21:45:00` |
-| `last_sign_in_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-02-17 06:46:00` - `2026-03-27 16:47:00` |
-| `grade_id` | `object/int` | Класс пользователя |
-| `subscribed` | `bool` | Подписан ли пользователь на email-рассылки: `False`, `True` |
-| `grade_checked` | `bool` | Ненужное поле: `False`, `True` |
-| `is_teacher` | `bool` | Является ли пользователь учителем: `False` |
-| `timezone` | `object` | Таймзона пользователя |
-| `grade_changed_at` | `object/datetime` | Время изменения класса. Диапазон: `2025-02-04 15:51:00` - `2026-03-26 14:58:00` |
-| `xp` | `object/int` | Ненужное поле |
-| `d_wk_school_id` | `object/int` | Идентификатор школы пользователя |
-| `d_wk_municipal_id` | `object/int` | Идентификатор города/муниципалитета пользователя |
-| `d_wk_region_id` | `object/int` | Идентификатор региона пользователя |
-| `d_updated_at` | `object/datetime` | Ненужное поле. Диапазон: `2025-05-01 02:05:00` - `2025-05-31 19:43:00` |
-| `wk_gender` | `float64` | Пол пользователя: `1.0`, `2.0` |
+## Состав файлов
 
-### `users_courses.csv` (290 835 строк)
+| Файл | Строк | Гранулярность | Главные ID / ключи | Содержание |
+|---|---:|---|---|---|
+| `users.csv` | 95,395 | пользователь | `id` | профиль пользователя |
+| `users_courses.csv` | 290,835 | пользователь на курсе | `id`, `user_id`, `course_id` | состояние курса, доступ, баллы |
+| `lessons.csv` | 3,369 | урок | `id`, `course_id` | структура уроков курса |
+| `groups.csv` | 13,076 | вебинар / показ урока | `id`, `lesson_id`, `group_template_id` | онлайн-вебинары и фактическое время проведения |
+| `trainings.csv` | 410 | тренинг | `id`, `lesson_id` | метаданные тренингов |
+| `lesson_tasks.csv` | 29,544 | задача в уроке | `id`, `lesson_id`, `task_id` | задачи, их порядок и обязательность |
+| `homeworks.csv` | 1,226 | домашнее задание | `id`, `resource_type`, `resource_id` | ДЗ, собранные по урокам / материалам / событиям |
+| `homework_items.csv` | 5,901 | элемент ДЗ | `id`, `homework_id`, `resource_type`, `resource_id` | отдельные требования внутри ДЗ |
+| `user_access_histories.csv` | 667,124 | история доступа пользователя к курсу | `users_course_id` | интервалы доступа к курсу |
+| `user_lessons.csv` | 3,070,664 | пользователь на уроке | `user_id`, `lesson_id`, `users_course_id`, `group_id` | посещение и прогресс по урокам |
+| `user_activity_histories.csv` | 3,031,137 | действие в LMS | `user_lesson_id` | история действий внутри урока |
+| `user_answers.csv` | 15,176,182 | ответ пользователя | `user_id`, `task_id`, `resource_type`, `resource_id` | ответы по задачам |
+| `user_trainings.csv` | 427,628 | пользователь на тренинге | `user_id`, `training_id` | прохождение тренингов и оценки |
+| `wk_users_courses_actions.csv` | 12,909,207 | событие на курсе | `user_id`, `users_course_id`, `lesson_id`, `action` | event-log действий на курсе |
+| `wk_media_view_sessions.csv` | 852,358 | сессия просмотра медиа | `viewer_id`, `resource_type`, `resource_id` | просмотры записей и вебинаров |
+| `award_badges.csv` | 6 | тип награды | `id` | справочник наград |
+| `user_award_badges.csv` | 252,843 | выданная награда | `award_badge_id`, `user_id` | выданные пользователям награды |
+| `stats__module_1.csv` | 3,261 | пользователь в модуле 1 | `user_id`, `course_id`, `id параллели` | сводка критериев + `Статус` |
+| `stats__module_2.csv` | 1,955 | пользователь в модуле 2 | `user_id`, `course_id`, `id параллели` | сводка критериев + `Статус` |
+| `stats__module_3.csv` | 1,785 | пользователь в модуле 3 | `user_id`, `course_id`, `id параллели` | сводка критериев без `Статус` |
+| `stats__module_4.csv` | 1,707 | пользователь в модуле 4 | `user_id`, `course_id`, `id параллели` | сводка критериев без `Статус` |
 
-Какие курсы проходит каждый пользователь и общая информация по ним: есть ли доступ, накопленные баллы и т.п.
+## Таблицы, которые уже можно использовать для target
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_id` | `object/int` | Идентификатор пользователя |
-| `course_id` | `object/int` | Идентификатор курса |
-| `state` | `object` | Активен ли доступ пользователя к курсу: `active`, `inactive` |
-| `created_at` | `object/datetime` | Время создания записи `user-course`. Диапазон: `2025-02-07 11:33:00` - `2026-03-26 20:23:00` |
-| `updated_at` | `object/datetime` | Время обновления записи `user-course`. Диапазон: `2025-02-19 07:00:00` - `2026-03-27 01:49:00` |
-| `access_finished_at` | `object/date` | Таймкод: когда статус стал `inactive`; если сейчас статус `active`, то когда доступ закончится. Диапазон: `2025-02-16` - `2026-09-26` |
-| `wk_points` | `float64` | Сколько баллов внутри курса набрал пользователь |
-| `wk_max_points` | `float64` | Максимальное количество баллов, которое можно набрать на курсе |
-| `wk_max_viewable_lessons` | `float64` | Максимальное количество уроков, которые можно пройти на курсе |
-| `wk_max_task_count` | `float64` | Максимальное количество заданий, которые можно решить на курсе |
-| `wk_officially_started_at` | `object/date` | Таймкод, когда пользователь начал прохождение курса. Диапазон: `2023-06-21` - `2026-02-23` |
-| `wk_course_completed_at` | `object/datetime` | Таймкод, когда пользователь завершил курс. Диапазон: `2026-01-12 14:35:00` - `2026-03-26 17:26:00` |
+По документации критерии перевода опираются на такие условия:
 
-### `lessons.csv` (3 369 строк)
+1. минимум один вебинар посещён онлайн;
+2. просмотрено 80% занятий и 80% контента;
+3. решены все обязательные задачи;
+4. пройден текущий контроль;
+5. пройдена рефлексия;
+6. пройдена промежуточная аттестация (`>= 8` баллов).
 
-Все существующие в LMS уроки по всем курсам.
+С текущей поставкой это лучше всего раскладывается так:
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `course_id` | `object/int` | ID курса, к которому относится урок |
-| `conspect_expected` | `bool` | Привязан ли к уроку конспект: `False`, `True` |
-| `task_expected` | `bool` | Привязаны ли к уроку проверочные задания: `False`, `True` |
-| `lesson_number` | `float64` | Порядковый номер урока в курсе |
-| `wk_max_points` | `float64` | Максимальное количество баллов, которое можно заработать за задания к уроку |
-| `wk_task_count` | `float64` | Количество заданий к уроку |
-| `wk_survival_training_expected` | `bool` | Привязан ли к уроку тренажер на выживание: `False`, `True` |
-| `wk_scratch_playground_enabled` | `bool` | Подключена ли внешняя интеграция со Scratch: `False`, `True` |
-| `wk_attendance_tracking_enabled` | `bool` | Отслеживается ли посещение урока: `False`, `True` |
-| `wk_video_duration` | `float64` | Длина видео к уроку |
-| `wk_attendance_tracking_disabled_at` | `object/datetime` | Таймкод, когда отключили отслеживание посещения урока. Диапазон: `2025-12-23 22:25:00` - `2026-01-19 11:05:00` |
+- вебинары и просмотры: `groups`, `wk_media_view_sessions`, частично `user_lessons`, `wk_users_courses_actions`;
+- задачи и обязательный минимум: `lesson_tasks`, `user_answers`, частично `homeworks`, `homework_items`;
+- тренинги и оценки: `trainings`, `user_trainings`;
+- курс, доступ и накопленные баллы: `users_courses`, `user_access_histories`, `user_lessons`, `wk_users_courses_actions`;
+- готовые target-like метки по модулям: `stats__module_1`, `stats__module_2`.
 
-### `user_access_histories.csv` (667 124 строки)
+## Подтверждённые связи
 
-История выдачи доступа пользователей к курсам.
+Ниже перечислены связи, которые подтверждаются и документацией, и текущими CSV.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `users_course_id` | `int64` | ID курса из `users_courses` |
-| `access_started_at` | `object/date` | Таймкод начала доступа к курсу. Диапазон: `2025-02-07` - `2026-03-27` |
-| `access_expired_at` | `object/date` | Таймкод истечения срока доступа к курсу. Диапазон: `2025-02-16` - `2026-09-27` |
-| `activator_class` | `object` | Тип доступа: `Courses::AccessActivators::ChangeAccessDurationActivator`, `Courses::AccessActivators::MonthPremiumAccessActivator`, `Courses::AccessActivators::PremiumAccessActivator`, `Courses::AccessActivators::RevokeAccessActivator`, `Courses::AccessActivators::StandardAccessActivator` |
+- `users.id -> users_courses.user_id` — `100%` покрытие уникальных `user_id` из `users_courses`.
+- `users.id -> user_answers.user_id` — `100%`.
+- `users.id -> user_trainings.user_id` — `100%`.
+- `users.id -> wk_media_view_sessions.viewer_id` — `100%`.
+- `users.id -> user_lessons.user_id` — `99.96%`.
+- `users.id -> wk_users_courses_actions.user_id` — `99.96%`.
+- `users.id -> user_award_badges.user_id` — `97.45%`.
 
-### `user_lessons.csv` (3 070 664 строки)
+- `users_courses.id -> user_access_histories.users_course_id` — `99.99%`.
+- `users_courses.id -> user_lessons.users_course_id` — `99.98%`.
+- `users_courses.id -> wk_users_courses_actions.users_course_id` — `99.98%`.
 
-Все существующие в LMS уроки по всем курсам, привязанные к пользователям.
+- `users_courses.course_id -> lessons.course_id` — `99` курсов из `137` course_id в `lessons`; в `users_courses` всего `99` уникальных `course_id`.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_id` | `object/int` | Идентификатор пользователя |
-| `lesson_id` | `object/int` | ID урока из `lessons` |
-| `group_id` | `object/int` | ID параллели |
-| `video_visited` | `bool` | Была ли открыта пользователем запись вебинара в уроке: `False`, `True` |
-| `translation_visited` | `bool` | Была ли открыта пользователем онлайн-трансляция вебинара в уроке: `False`, `True` |
-| `users_course_id` | `object/int` | ID курса из `users_courses` |
-| `solved` | `bool` | Решены ли пользователем все задания из урока: `False`, `True` |
-| `solved_tasks_count` | `int64` | Количество решенных пользователем заданий из урока |
-| `wk_points` | `float64` | Набранные пользователем баллы за этот урок |
-| `video_viewed` | `bool` | Просмотрел ли пользователь видео к уроку: `False`, `True` |
-| `wk_solved_task_count` | `float64` | Количество решенных пользователем заданий по уроку |
+- `lessons.id -> user_lessons.lesson_id` — `98.24%`.
+- `lessons.id -> wk_users_courses_actions.lesson_id` — `100%` для непустых `lesson_id`.
+- `lessons.id -> groups.lesson_id` — `99.76%`.
+- `lessons.id -> trainings.lesson_id` — `98.44%`.
 
-Комментарий: в текстовой документации для `user_lessons` отдельный `user_lesson_id` не перечислен.
+- `user_answers.resource_id[Lesson] -> lessons.id` — `98.1%`.
+- `user_answers.resource_id[Training] -> trainings.id` — `100%`.
+- `user_answers.resource_id[Homework] -> homeworks.id` — `100%`.
 
-### `user_activity_histories.csv` (3 031 137 строк)
+- `wk_media_view_sessions.resource_id[Lesson] -> lessons.id` — `100%`.
+- `wk_media_view_sessions.resource_id[Group] -> groups.id` — `100%`.
 
-История активностей пользователей в LMS.
+- `user_award_badges.award_badge_id -> award_badges.id` — `100%`.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_lesson_id` | `object/int` | ID урока пользователя из `user_lessons` |
-| `action` | `object` | Действие пользователя: `show_conspect`, `visit_translation`, `visit_video` |
-| `created_at` | `object/datetime` | Таймкод действия. Диапазон: `2020-11-25 13:36:00` - `2026-03-31 15:20:00` |
+- `homework_items.homework_id -> homeworks.id` — `100%`.
 
-Комментарий: Notion-документация явно ссылается на `user_lessons`, но в текущем `user_lessons.csv` нет столбца `user_lesson_id`.
+- `stats__module_1.user_id -> users.id` — `100%`.
+- `stats__module_2.user_id -> users.id` — `100%`.
+- `stats__module_3.user_id -> users.id` — `100%`.
+- `stats__module_4.user_id -> users.id` — `100%`.
 
-### `user_answers.csv` (15 176 182 строки)
+- `stats__module_1.course_id -> users_courses.course_id` — `100%`.
+- `stats__module_2.course_id -> users_courses.course_id` — `100%`.
+- `stats__module_3.course_id -> users_courses.course_id` — `100%`.
+- `stats__module_4.course_id -> users_courses.course_id` — `100%`.
 
-Ответы пользователей по всем заданиям.
+- `stats__module_*.id параллели -> groups.group_template_id` — `100%` для всех четырёх модулей.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_id` | `object/int` | Идентификатор пользователя |
-| `task_id` | `object/int` | ID задачи в системе |
-| `attempts` | `int64` | Количество сделанных пользователем попыток: `0`, `1`, `2` |
-| `solved` | `object/bool` | Решено ли задание: `False`, `True` |
-| `points` | `float64` | Количество заработанных баллов за задание |
-| `max_attempts` | `int64` | Максимальное количество попыток, доступных для задачи: `1`, `2` |
-| `results` | `object` | Баллы за попытки |
-| `skipped` | `object/bool` | Было ли задание пропущено пользователем: `False`, `True` |
-| `resource_type` | `object` | В рамках какой активности было взаимодействие с задачей: `Homework`, `Lesson`, `Training` |
-| `submitted_at` | `object/datetime` | Таймкод сдачи пользователем последнего ответа. Диапазон: `2025-02-17 16:43:00` - `2026-03-31 16:04:00` |
-| `wk_partial_answer` | `object/bool` | Ответ дан частично (`True`) или полностью (`False`): `False`, `True` |
-| `performance` | `float64` | Ненужное поле: `0.0`, `0.5`, `1.0` |
-| `async_check_status` | `int64` | Статус готовности для асинхронных задач: `0`, `1`, `2` |
+## Неполные или проблемные связи
 
-Комментарий: в Notion дополнительно описан `resource_id`, но в текущем CSV этого столбца нет.
+Это текущие места, где документация и данные не замыкаются до конца.
 
-### `user_trainings.csv` (427 628 строк)
+- В `user_activity_histories.csv` есть `user_lesson_id`, но в `user_lessons.csv` нет явного `id` или `user_lesson_id`. Поэтому `user_activity_histories` по-прежнему нельзя напрямую связать с остальными таблицами.
 
-Какие тренинги проходит каждый пользователь.
+- `lesson_tasks.lesson_id -> lessons.id` покрывается только на `57%` уникальных `lesson_id`. Значит, `lesson_tasks` описывает более широкий набор уроков, чем текущий `lessons.csv`, или же `lessons.csv` выгружен не полностью относительно задач.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_id` | `object/int` | Идентификатор пользователя |
-| `training_id` | `object/int` | ID тренинга |
-| `solved_tasks_count` | `int64` | Количество решенных пользователем заданий |
-| `earned_points` | `float64` | Набранный балл за весь тренинг |
-| `type` | `object` | Тип тренинга: `UserTrainings::LessonTraining`, `UserTrainings::OlympiadTraining`, `UserTrainings::RegularTraining` |
-| `state` | `object` | Статус прохождения: `checked`, `started` |
-| `submitted_answers_count` | `int64` | Количество ответов, отправленных в рамках тренинга |
-| `started_at` | `object/datetime` | Таймкод начала прохождения тренинга. Диапазон: `2025-02-17 08:47:00` - `2026-03-27 17:07:00` |
-| `finished_at` | `object/datetime` | Таймкод завершения прохождения тренинга. Диапазон: `2025-02-17 16:44:00` - `2026-03-27 17:06:00` |
-| `attempts` | `int64` | Количество попыток пройти тренинг: `1` |
-| `mark` | `float64` | Оценка за прохождение тренинга |
-| `mark_saved_at` | `object/datetime` | Таймкод выставления оценки. Диапазон: `2025-02-17 16:44:00` - `2026-03-27 17:06:00` |
+- `lesson_tasks.task_id -> user_answers.task_id` покрывается только на `37.72%` уникальных `task_id` из `lesson_tasks`. Следовательно, в `user_answers` и `lesson_tasks` живут не полностью совпадающие подмножества задач.
 
-### `wk_users_courses_actions.csv` (12 909 207 строк)
+- `homeworks.resource_id[Lesson] -> lessons.id` покрывается только на `27.51%`. По документации это должен быть ID урока, но в текущей поставке большая часть этих ID не находится в `lessons.csv`.
 
-Активность пользователей на курсах.
+- В `homeworks.csv` есть `resource_type = LessonMaterial`, но отдельной таблицы материалов уроков в поставке нет.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `user_id` | `object/int` | Идентификатор пользователя |
-| `users_course_id` | `object/int` | ID записи из `users_courses` |
-| `sourceable_id` | `float64` | Ненужное поле |
-| `action` | `object` | Совершенное пользователем действие: `scratch_playground_visited`, `start_training`, `user_answer`, `visit_preparation_material`, `visit_translation`, `visit_video` |
-| `created_at` | `object/datetime` | Таймкод совершения действия. Диапазон: `2025-02-17 11:35:00` - `2026-03-31 14:12:00` |
-| `updated_at` | `object/datetime` | Последнее обновление строки. Диапазон: `2025-02-17 11:35:00` - `2026-03-31 14:12:00` |
-| `lesson_id` | `object/int` | ID урока из `lessons`, в рамках которого производилось действие |
+- В `homeworks.csv` есть одна строка с `resource_type = Event`, но её `resource_id` не матчится с `groups.id`.
 
-### `wk_media_view_sessions.csv` (852 358 строк)
+- `homework_items.resource_id[Task] -> lesson_tasks.task_id` покрывается только на `23.33%`. Значит, `homework_items` ссылается на более широкий мир задач, чем текущий `lesson_tasks.csv`.
 
-Данные по сессиям просмотров медиа-контента внутри LMS.
+- В `homework_items.csv` есть `resource_type = CommonFile` и `Video`, но таблиц для этих сущностей в поставке нет.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `resource_type` | `object` | Какой тип контента смотрел пользователь: `Group`, `Lesson` |
-| `viewer_id` | `object/int` | ID пользователя из `users` |
-| `segments_total` | `int64` | Общее количество сегментов медиа |
-| `viewed_segments_count` | `int64` | Количество просмотренных сегментов |
-| `started_at` | `object/datetime` | Таймкод начала просмотра. Диапазон: `2025-03-28 05:58:00` - `2026-03-27 14:08:00` |
-| `kind` | `object` | Вид медиа: `kinescope`, `ulms_live`, `ulms_vod` |
+- `groups.group_template_id` по смыслу похож на `user_lessons.group_id` (оба описаны как “id параллели”), но фактическое пересечение равно `0%`. Эти поля нельзя считать одним и тем же ключом.
 
-### `award_badges.csv` (6 строк)
+- `groups.teacher_id` не матчится с `users.id` (`0%`), хотя `stats__module_*.teacher_id` матчится с `users.id` на `100%`. Значит, `teacher_id` в `groups` и `teacher_id` в `stats__module_*` живут в разных пространствах идентификаторов.
 
-Типы наград в LMS.
+- `wk_users_courses_actions.sourceable_id` почти не помогает для связности: оно заполнено только у `visit_preparation_material`, а для `start_training`, `user_answer`, `visit_video`, `visit_translation` пусто.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `name` | `object` | Ненужное поле |
-| `title` | `object` | Название награды: `Олимпиадник`, `Я решаю` |
-| `level` | `int64` | Уровень награды |
-| `quota` | `int64` | Что нужно сделать для получения награды |
-| `special` | `bool` | Категория награды: `False`, `True` |
-| `unlocked_small_image_url` | `object` | Ссылка на иллюстрацию |
+## Что это значит для таргета
 
-### `user_award_badges.csv` (252 843 строки)
+С текущей поставкой target можно строить заметно полнее, потому что в данных есть:
 
-Присвоенные в LMS пользователям награды/достижения.
+- явный `users_courses.id`;
+- явный `lessons.id`;
+- `resource_id` в `user_answers`;
+- `resource_id` в `wk_media_view_sessions`;
+- явный `award_badges.id`;
+- `trainings.csv`;
+- `groups.csv`, `lesson_tasks.csv`, `homeworks.csv`, `homework_items.csv`;
+- `stats__module_1/2` с готовым `Статус`.
 
-| Колонка | Тип | Описание |
-|---|---|---|
-| `Unnamed: 0` | `int64` | Технический индекс строки |
-| `award_badge_id` | `int64` | ID награды из `award_badges` |
-| `user_id` | `object/int` | ID пользователя из `users` |
-| `created_at` | `object/datetime` | Таймкод присвоения награды. Диапазон: `2023-10-03 12:53:00` - `2026-03-27 17:18:00` |
+Но для полностью “честного” raw target всё ещё мешают:
+
+- отсутствие явного `user_lesson_id` в `user_lessons`;
+- неполная связность вокруг `lesson_tasks`, `homeworks`, `homework_items`;
+- несогласованные teacher/group IDs в части таблиц.
+
+Практически это означает:
+
+- `stats__module_1` и `stats__module_2` уже можно использовать как source of truth для target по первым двум модулям;
+- raw LMS target по критериям перевода можно собирать намного лучше, но не для всех критериев и не по всем таблицам без оговорок;
+- `user_activity_histories` пока остаётся наиболее изолированной таблицей.
+
+## Краткие описания таблиц
+
+### `users.csv`
+
+Пользователи LMS. Главный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `last_explainer_seen_→_course`, `created_at`, `updated_at`, `type`, `remember_created_at`, `sign_in_count`, `current_sign_in_at`, `last_sign_in_at`, `grade_id`, `subscribed`, `grade_checked`, `is_teacher`, `timezone`, `grade_changed_at`, `xp`, `d_wk_school_id`, `d_wk_municipal_id`, `d_wk_region_id`, `d_updated_at`, `wk_gender`.
+
+### `users_courses.csv`
+
+Основа уровня `user-course`. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `user_id`, `course_id`, `state`, `created_at`, `updated_at`, `access_finished_at`, `wk_points`, `wk_max_points`, `wk_max_viewable_lessons`, `wk_max_task_count`, `wk_officially_started_at`, `wk_course_completed_at`.
+
+### `lessons.csv`
+
+Справочник уроков. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `course_id`, `conspect_expected`, `task_expected`, `lesson_number`, `wk_max_points`, `wk_task_count`, `wk_survival_training_expected`, `wk_scratch_playground_enabled`, `wk_attendance_tracking_enabled`, `wk_video_duration`, `wk_attendance_tracking_disabled_at`.
+
+### `groups.csv`
+
+Вебинары / показы уроков. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `lesson_id`, `teacher_id`, `starts_at`, `duration`, `state`, `group_template_id`, `video_available`, `pupils_notified_at`, `wk_actual_started_at`, `wk_actual_finished_at`, `wk_duration_actual`.
+
+### `trainings.csv`
+
+Справочник тренингов. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `name`, `discipline_id`, `time_limit`, `published_at`, `difficulty`, `lesson_id`, `task_templates_count`.
+
+### `lesson_tasks.csv`
+
+Задачи внутри уроков. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `lesson_id`, `task_id`, `position`, `task_required`.
+
+### `homeworks.csv`
+
+Справочник домашних заданий. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `resource_type`, `resource_id`, `homework_type`.
+
+### `homework_items.csv`
+
+Элементы домашнего задания. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `homework_id`, `resource_type`, `resource_id`, `position`.
+
+### `user_access_histories.csv`
+
+История выдачи доступа к курсу. Ключ в данных — `users_course_id`.
+
+Поля: `Unnamed: 0`, `users_course_id`, `access_started_at`, `access_expired_at`, `activator_class`.
+
+### `user_lessons.csv`
+
+Урок пользователя внутри курса. Явного `id` в CSV нет.
+
+Поля: `Unnamed: 0`, `user_id`, `lesson_id`, `group_id`, `video_visited`, `translation_visited`, `users_course_id`, `solved`, `solved_tasks_count`, `wk_points`, `video_viewed`, `wk_solved_task_count`.
+
+### `user_activity_histories.csv`
+
+События пользователя внутри урока. Ключ в документации — `user_lesson_id`, но мост к `user_lessons` в текущем CSV отсутствует.
+
+Поля: `Unnamed: 0`, `user_lesson_id`, `action`, `created_at`.
+
+### `user_answers.csv`
+
+Ответы по задачам.
+
+Поля: `Unnamed: 0`, `user_id`, `task_id`, `attempts`, `solved`, `points`, `max_attempts`, `results`, `skipped`, `resource_type`, `resource_id`, `submitted_at`, `wk_partial_answer`, `performance`, `async_check_status`.
+
+### `user_trainings.csv`
+
+Прохождение тренингов пользователем.
+
+Поля: `Unnamed: 0`, `user_id`, `training_id`, `solved_tasks_count`, `earned_points`, `type`, `state`, `submitted_answers_count`, `started_at`, `finished_at`, `attempts`, `mark`, `mark_saved_at`.
+
+### `wk_users_courses_actions.csv`
+
+Event-log действий пользователя на курсе.
+
+Поля: `Unnamed: 0`, `user_id`, `users_course_id`, `sourceable_id`, `action`, `created_at`, `updated_at`, `lesson_id`.
+
+### `wk_media_view_sessions.csv`
+
+Просмотры медиа.
+
+Поля: `Unnamed: 0`, `resource_type`, `resource_id`, `viewer_id`, `segments_total`, `viewed_segments_count`, `started_at`, `kind`.
+
+### `award_badges.csv`
+
+Справочник наград. Явный ключ — `id`.
+
+Поля: `Unnamed: 0`, `id`, `name`, `title`, `level`, `quota`, `special`, `unlocked_small_image_url`.
+
+### `user_award_badges.csv`
+
+Выданные пользователям награды.
+
+Поля: `Unnamed: 0`, `award_badge_id`, `user_id`, `created_at`.
+
+### `stats__module_1.csv`
+
+Сводная таблица по первому модулю. Содержит готовый target `Статус`.
+
+Поля: `Unnamed: 0`, `user_id`, `Кружок`, `teacher_id`, `Дата зачисления`, `id параллели`, `Уровень`, `course_id`, `Просмотрел уроков`, `Просмотрено контента`, `Просмотрено 80% ур или видеоконт`, `Посетил урок в онлайне`, `Решено ИЗ`, `Решены все обяз.ИЗ`, `Пройден тек.контроль`, `Балл ПА`, `Сдал ПА`, `Дата сдачи ПА (МСК)`, `Статус`.
+
+### `stats__module_2.csv`
+
+Сводная таблица по второму модулю. Содержит готовый target `Статус`.
+
+Поля: `Unnamed: 0`, `user_id`, `Кружок`, `teacher_id`, `course_id`, `id параллели`, `Уровень`, `Посмотрел уроков на 80%`, `Просмотрено контента (ед)`, `Просмотрено 720ед видеоконт и 80% ур `, `Смотрел уроков`, `Посетил урок в онлайне`, `Решено ИЗ`, `Решены все обяз.ИЗ`, `Пройден тек.контроль`, `Балл ПА`, `Сдал ПА`, `Дата сдачи ПА (МСК)`, `Пройдена рефлексия`, `Статус`.
+
+### `stats__module_3.csv`
+
+Сводная таблица по третьему модулю. Столбца `Статус` нет.
+
+Поля: `Unnamed: 0`, `user_id`, `Кружок`, `teacher_id`, `course_id`, `id параллели`, `Посмотрел уроков на 80%`, `Смотрел уроков`, `Посетил урок в онлайне`, `Просмотрено контента (ед)`, `Просмотрено 720ед видеоконт и 80% ур `, `Решено ИЗ`, `Решены все обяз.ИЗ`, `Пройден тек.контроль`, `Балл ПА`, `Сдал ПА`, `Дата сдачи ПА (МСК)`, `Уровень`, `Пройдена рефлексия`.
+
+### `stats__module_4.csv`
+
+Сводная таблица по четвёртому модулю. Столбца `Статус` нет.
+
+Поля: `Unnamed: 0`, `user_id`, `Кружок`, `teacher_id`, `course_id`, `id параллели`, `Посмотрел уроков на 80%`, `Смотрел уроков`, `Посетил урок в онлайне`, `Просмотрено контента (ед)`, `Просмотрено 720ед видеоконт и 80% ур `, `Решено ИЗ`, `Решены все обяз.ИЗ`, `Пройден тек.контроль`, `Сдал ПА`, `Уровень`, `Пройдена рефлексия`, `Сдал ИА`.
 
 ## ER-диаграмма
 
@@ -249,108 +316,161 @@
 erDiagram
     USERS {
         int id
-        datetime created_at
-        datetime updated_at
-        int sign_in_count
-        int xp
     }
 
     USERS_COURSES {
+        int id
         int user_id
         int course_id
-        string state
-        datetime created_at
-        datetime updated_at
-        date access_finished_at
-        float wk_points
-        float wk_max_points
     }
 
     LESSONS {
+        int id
         int course_id
-        float lesson_number
-        float wk_task_count
-        float wk_max_points
+    }
+
+    GROUPS {
+        int id
+        int lesson_id
+        int group_template_id
+        int teacher_id
+    }
+
+    TRAININGS {
+        int id
+        int lesson_id
+    }
+
+    LESSON_TASKS {
+        int id
+        int lesson_id
+        int task_id
+    }
+
+    HOMEWORKS {
+        int id
+        string resource_type
+        int resource_id
+    }
+
+    HOMEWORK_ITEMS {
+        int id
+        int homework_id
+        string resource_type
+        int resource_id
+    }
+
+    USER_ACCESS_HISTORIES {
+        int users_course_id
     }
 
     USER_LESSONS {
         int user_id
         int lesson_id
+        int group_id
         int users_course_id
-        boolean video_visited
-        boolean translation_visited
-        boolean solved
     }
 
-    USER_ACCESS_HISTORIES {
-        int users_course_id
-        date access_started_at
-        date access_expired_at
-        string activator_class
-    }
-
-    WK_USERS_COURSES_ACTIONS {
-        int user_id
-        int users_course_id
-        string action
-        datetime created_at
-        int lesson_id
+    USER_ACTIVITY_HISTORIES {
+        int user_lesson_id
     }
 
     USER_ANSWERS {
         int user_id
         int task_id
-        int attempts
-        boolean solved
-        datetime submitted_at
+        string resource_type
+        int resource_id
     }
 
     USER_TRAININGS {
         int user_id
         int training_id
-        string state
-        float mark
-        datetime started_at
     }
 
-    USER_AWARD_BADGES {
+    WK_USERS_COURSES_ACTIONS {
         int user_id
-        int award_badge_id
-        datetime created_at
-    }
-
-    AWARD_BADGES {
-        int row_index
-        string name
-        string title
-        int level
-    }
-
-    USER_ACTIVITY_HISTORIES {
-        int user_lesson_id
+        int users_course_id
+        int lesson_id
         string action
-        datetime created_at
     }
 
     WK_MEDIA_VIEW_SESSIONS {
         int viewer_id
         string resource_type
-        int segments_total
-        int viewed_segments_count
-        string kind
-        datetime started_at
+        int resource_id
     }
 
-    USERS ||--o{ USERS_COURSES : "id = user_id"
-    USERS ||--o{ USER_ANSWERS : "id = user_id"
-    USERS ||--o{ USER_TRAININGS : "id = user_id"
-    USERS ||--o{ USER_AWARD_BADGES : "id = user_id"
-    USERS ||--o{ USER_LESSONS : "id = user_id"
-    USERS ||--o{ WK_USERS_COURSES_ACTIONS : "id = user_id"
-    USERS ||--o{ WK_MEDIA_VIEW_SESSIONS : "id = viewer_id"
-    USERS_COURSES ||--o{ LESSONS : "course_id"
-    USER_ACCESS_HISTORIES ||--o{ USER_LESSONS : "users_course_id"
-    USER_ACCESS_HISTORIES ||--o{ WK_USERS_COURSES_ACTIONS : "users_course_id"
-    USER_LESSONS }o--o{ WK_USERS_COURSES_ACTIONS : "user_id + users_course_id"
-    AWARD_BADGES ||--o{ USER_AWARD_BADGES : "badge type; ref key is implicit"
+    AWARD_BADGES {
+        int id
+    }
+
+    USER_AWARD_BADGES {
+        int award_badge_id
+        int user_id
+    }
+
+    STATS_MODULE_1 {
+        int user_id
+        int course_id
+        int id_параллели
+        string Статус
+    }
+
+    STATS_MODULE_2 {
+        int user_id
+        int course_id
+        int id_параллели
+        string Статус
+    }
+
+    STATS_MODULE_3 {
+        int user_id
+        int course_id
+        int id_параллели
+    }
+
+    STATS_MODULE_4 {
+        int user_id
+        int course_id
+        int id_параллели
+    }
+
+    USERS ||--o{ USERS_COURSES : "user_id"
+    USERS ||--o{ USER_LESSONS : "user_id"
+    USERS ||--o{ USER_ANSWERS : "user_id"
+    USERS ||--o{ USER_TRAININGS : "user_id"
+    USERS ||--o{ WK_USERS_COURSES_ACTIONS : "user_id"
+    USERS ||--o{ WK_MEDIA_VIEW_SESSIONS : "viewer_id"
+    USERS ||--o{ USER_AWARD_BADGES : "user_id"
+
+    USERS_COURSES ||--o{ USER_ACCESS_HISTORIES : "id -> users_course_id"
+    USERS_COURSES ||--o{ USER_LESSONS : "id -> users_course_id"
+    USERS_COURSES ||--o{ WK_USERS_COURSES_ACTIONS : "id -> users_course_id"
+    USERS_COURSES }o--o{ LESSONS : "course_id"
+
+    LESSONS ||--o{ GROUPS : "lesson_id"
+    LESSONS ||--o{ TRAININGS : "lesson_id"
+    LESSONS ||--o{ USER_LESSONS : "lesson_id"
+    LESSONS ||--o{ WK_USERS_COURSES_ACTIONS : "lesson_id"
+
+    TRAININGS ||--o{ USER_TRAININGS : "training_id"
+    HOMEWORKS ||--o{ HOMEWORK_ITEMS : "homework_id"
+    AWARD_BADGES ||--o{ USER_AWARD_BADGES : "award_badge_id"
+
+    LESSONS }o--o{ USER_ANSWERS : "resource_id [Lesson]"
+    TRAININGS }o--o{ USER_ANSWERS : "resource_id [Training]"
+    HOMEWORKS }o--o{ USER_ANSWERS : "resource_id [Homework]"
+
+    LESSONS }o--o{ WK_MEDIA_VIEW_SESSIONS : "resource_id [Lesson]"
+    GROUPS }o--o{ WK_MEDIA_VIEW_SESSIONS : "resource_id [Group]"
+
+    USERS ||--o{ STATS_MODULE_1 : "user_id"
+    USERS ||--o{ STATS_MODULE_2 : "user_id"
+    USERS ||--o{ STATS_MODULE_3 : "user_id"
+    USERS ||--o{ STATS_MODULE_4 : "user_id"
+
+    GROUPS ||--o{ STATS_MODULE_1 : "group_template_id"
+    GROUPS ||--o{ STATS_MODULE_2 : "group_template_id"
+    GROUPS ||--o{ STATS_MODULE_3 : "group_template_id"
+    GROUPS ||--o{ STATS_MODULE_4 : "group_template_id"
 ```
