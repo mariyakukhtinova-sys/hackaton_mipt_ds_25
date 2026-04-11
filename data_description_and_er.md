@@ -53,7 +53,7 @@
 | `homeworks.csv` | 1,226 | домашнее задание | `id`, `resource_type`, `resource_id` | ДЗ, собранные по урокам / материалам / событиям |
 | `homework_items.csv` | 5,901 | элемент ДЗ | `id`, `homework_id`, `resource_type`, `resource_id` | отдельные требования внутри ДЗ |
 | `user_access_histories.csv` | 667,124 | история доступа пользователя к курсу | `users_course_id` | интервалы доступа к курсу |
-| `user_lessons.csv` | 3,070,664 | пользователь на уроке | `user_id`, `lesson_id`, `users_course_id`, `group_id` | посещение и прогресс по урокам |
+| `user_lessons.csv` | 3,070,664 | пользователь на уроке | `id`, `user_id`, `lesson_id`, `users_course_id`, `group_id` | посещение, просмотры и прогресс по урокам |
 | `user_activity_histories.csv` | 3,031,137 | действие в LMS | `user_lesson_id` | история действий внутри урока |
 | `user_answers.csv` | 15,176,182 | ответ пользователя | `user_id`, `task_id`, `resource_type`, `resource_id` | ответы по задачам |
 | `user_trainings.csv` | 427,628 | пользователь на тренинге | `user_id`, `training_id` | прохождение тренингов и оценки |
@@ -108,6 +108,9 @@
 - `lessons.id -> groups.lesson_id` — `99.76%`.
 - `lessons.id -> trainings.lesson_id` — `98.44%`.
 
+- `groups.id -> user_lessons.group_id` — `99.71%`.
+- `user_lessons.id -> user_activity_histories.user_lesson_id` — `99.18%`.
+
 - `user_answers.resource_id[Lesson] -> lessons.id` — `98.1%`.
 - `user_answers.resource_id[Training] -> trainings.id` — `100%`.
 - `user_answers.resource_id[Homework] -> homeworks.id` — `100%`.
@@ -135,7 +138,7 @@
 
 Это текущие места, где документация и данные не замыкаются до конца.
 
-- В `user_activity_histories.csv` есть `user_lesson_id`, но в `user_lessons.csv` нет явного `id` или `user_lesson_id`. Поэтому `user_activity_histories` по-прежнему нельзя напрямую связать с остальными таблицами.
+- `user_lessons.id -> user_activity_histories.user_lesson_id` покрывается на `99.18%` уникальных `user_lesson_id` из `user_activity_histories`. Связь теперь есть и в целом рабочая, но не полная: `20,872` ID из `user_activity_histories` не находятся в текущем `user_lessons.csv`, а `545,217` ID из `user_lessons.csv` не имеют событий в `user_activity_histories`.
 
 - `lesson_tasks.lesson_id -> lessons.id` покрывается только на `57%` уникальных `lesson_id`. Значит, `lesson_tasks` описывает более широкий набор уроков, чем текущий `lessons.csv`, или же `lessons.csv` выгружен не полностью относительно задач.
 
@@ -151,7 +154,7 @@
 
 - В `homework_items.csv` есть `resource_type = CommonFile` и `Video`, но таблиц для этих сущностей в поставке нет.
 
-- `groups.group_template_id` по смыслу похож на `user_lessons.group_id` (оба описаны как “id параллели”), но фактическое пересечение равно `0%`. Эти поля нельзя считать одним и тем же ключом.
+- `user_lessons.group_id` матчится с `groups.id` на `99.71%`, а с `groups.group_template_id` — на `0%`. Значит, в новом датасете это почти наверняка ID конкретной группы / вебинара, а не `group_template_id` и не “id параллели”.
 
 - `groups.teacher_id` не матчится с `users.id` (`0%`), хотя `stats__module_*.teacher_id` матчится с `users.id` на `100%`. Значит, `teacher_id` в `groups` и `teacher_id` в `stats__module_*` живут в разных пространствах идентификаторов.
 
@@ -172,15 +175,14 @@
 
 Но для полностью “честного” raw target всё ещё мешают:
 
-- отсутствие явного `user_lesson_id` в `user_lessons`;
 - неполная связность вокруг `lesson_tasks`, `homeworks`, `homework_items`;
-- несогласованные teacher/group IDs в части таблиц.
+- несогласованные teacher IDs и разные уровни group-идентификаторов (`groups.id` против `groups.group_template_id`) в части таблиц.
 
 Практически это означает:
 
 - `stats__module_1` и `stats__module_2` уже можно использовать как source of truth для target по первым двум модулям;
-- raw LMS target по критериям перевода можно собирать намного лучше, но не для всех критериев и не по всем таблицам без оговорок;
-- `user_activity_histories` пока остаётся наиболее изолированной таблицей.
+- raw LMS target по критериям перевода можно собирать лучше ещё и потому, что `user_activity_histories` теперь стыкуется с `user_lessons` по явному `id`;
+- при этом не для всех критериев и не по всем таблицам получится обойтись без оговорок из-за неполных связей по задачам, ДЗ и template-level группам.
 
 ## Краткие описания таблиц
 ### `users.csv`
@@ -326,17 +328,18 @@
 | Колонка | Описание | Возможные значения | Диапазон дат-времени |
 |---|---|---|---|
 | `Unnamed: 0` | Технический индекс строки выгрузки. | — | — |
+| `id` | Явный идентификатор записи `user_lesson`; используется как ключ для связи с `user_activity_histories.user_lesson_id`. | — | — |
 | `user_id` | ID пользователя из `users.id`. | — | — |
 | `lesson_id` | ID урока из `lessons`. | — | — |
-| `group_id` | ID параллели в `user_lessons`. | — | — |
+| `group_id` | ID конкретной группы / показа урока; почти полностью матчится с `groups.id`, но не с `groups.group_template_id`. | — | — |
 | `video_visited` | Открывал ли пользователь запись вебинара. | True, False | — |
 | `translation_visited` | Открывал ли пользователь онлайн-трансляцию. | True, False | — |
 | `users_course_id` | ID записи из `users_courses.id`. | — | — |
-| `solved` | Решены ли все задания или решена ли задача. | True, False | — |
-| `solved_tasks_count` | Количество решённых задач. | — | — |
-| `wk_points` | Баллы пользователя внутри курса или урока. | — | — |
-| `video_viewed` | Технический флаг просмотра видео. | True, False | — |
-| `wk_solved_task_count` | Количество решённых задач по уроку. | — | — |
+| `solved` | Флаг, что урок считается решённым / выполненным по задачам. | True, False | — |
+| `solved_tasks_count` | Количество решённых задач по уроку. | 0-24 | — |
+| `wk_points` | Баллы пользователя по уроку; поле заполнено не полностью (`93.97%` строк). | 0.0-24.0 | — |
+| `video_viewed` | Флаг, что видео было засчитано как просмотренное. | True, False | — |
+| `wk_solved_task_count` | Технический счётчик решённых задач по уроку; близок по смыслу к `solved_tasks_count`, но заполнен не полностью (`93.97%` строк). | 0.0-23.0 | — |
 
 ### `user_activity_histories.csv`
 История действий пользователя внутри урока.
@@ -584,6 +587,7 @@ erDiagram
     }
 
     USER_LESSONS {
+        int id
         int user_id
         int lesson_id
         int group_id
@@ -671,6 +675,8 @@ erDiagram
     LESSONS ||--o{ TRAININGS : "lesson_id"
     LESSONS ||--o{ USER_LESSONS : "lesson_id"
     LESSONS ||--o{ WK_USERS_COURSES_ACTIONS : "lesson_id"
+    GROUPS ||--o{ USER_LESSONS : "id -> group_id"
+    USER_LESSONS ||--o{ USER_ACTIVITY_HISTORIES : "id -> user_lesson_id"
 
     TRAININGS ||--o{ USER_TRAININGS : "training_id"
     HOMEWORKS ||--o{ HOMEWORK_ITEMS : "homework_id"
