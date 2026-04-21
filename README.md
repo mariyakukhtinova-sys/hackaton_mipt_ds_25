@@ -4,8 +4,8 @@
 
 ## Навигация
 
-1. [final_report.pdf](final_report.pdf) - итоговый отчет в PDF.
-2. [final_report.md](final_report.md) - Markdown-версия итогового отчета.
+1. [teaser.pdf](teaser.pdf) / [teaser.md](teaser.md) - короткий тизер с ключевыми результатами.
+2. [final_report.pdf](final_report.pdf) / [final_report.md](final_report.md) - полный итоговый отчет.
 3. [Tri_sigma_final_research.ipynb](https://github.com/mariyakukhtinova-sys/hackaton_mipt_ds_25/blob/master/Tri_sigma_final_research.ipynb) - основной research: витрины, признаки, модели, метрики и "Светофор".
 4. [artefacts/](artefacts/) - сгенерированные витрины для моделирования.
 5. [modules/](modules/) - предварительный анализ `stats__module_*`, выбор гранулярности и эвристики статуса.
